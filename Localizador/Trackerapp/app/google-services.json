@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "584480045653",
+    "firebase_url": "https://milocalizadorv2-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "milocalizadorv2",
+    "storage_bucket": "milocalizadorv2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:584480045653:android:ccaf1cf696971d4dd372dc",
+        "android_client_info": {
+          "package_name": "com.igarciamen.trackerapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_YvCkK8kbq1PbAxNds8nwOklMBAg8oNM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:584480045653:android:1fdcaffbf4ac8f4ed372dc",
+        "android_client_info": {
+          "package_name": "com.igarciamen.viewerapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_YvCkK8kbq1PbAxNds8nwOklMBAg8oNM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
