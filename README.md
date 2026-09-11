@@ -1,93 +1,85 @@
-# Proyecto Localizador
+# Locator Project
 
-Sistema de localización entre dos o más teléfonos Android propios, formado por dos aplicaciones independientes (**Tracker** y **Viewer**) que se comunican a través de Firebase Realtime Database, con autenticación de usuario y emparejamiento por código.
+A location tracking system between two or more of your own Android phones, made up of two independent apps (**Tracker** and **Viewer**) that communicate through Firebase Realtime Database, with user authentication and pairing via code.
 
 ---
 
-## Demo
-
-
-https://github.com/user-attachments/assets/e352dd5b-93cb-44cc-9ea1-3f6891fc7cef
-
-
-
-## 📱 Componentes del proyecto
+## 📱 Project Components
 
 ### Tracker app (`com.igarciamen.trackerapp`)
-App instalada en el teléfono que se quiere localizar. **No tiene interfaz gráfica significativa**: solo una pantalla mínima para vincular el dispositivo la primera vez. Una vez vinculada, corre en segundo plano como un Foreground Service, escuchando peticiones de ubicación y respondiendo con las coordenadas GPS reales del teléfono.
+App installed on the phone you want to track. **Has no significant graphical interface**: just a minimal screen to link the device the first time. Once linked, it runs in the background as a Foreground Service, listening for location requests and responding with the phone's real GPS coordinates.
 
 ### Viewer app (`com.igarciamen.viewerapp`)
-App con interfaz gráfica completa, con mapa (OpenStreetMap vía osmdroid), login de usuario, selector de dispositivos vinculados, solicitud de ubicación puntual, historial de recorrido con filtro por fecha, y estado de conexión de cada Tracker.
+App with a full graphical interface, including a map (OpenStreetMap via osmdroid), user login, linked-device selector, on-demand location requests, route history with date filtering, and connection status for each Tracker.
 
 ---
 
-## 🏗️ Arquitectura
+## 🏗️ Architecture
 
 ```
-Tracker app  ──(GPS + Firebase)──▶  Realtime Database  ◀──(lectura)──  Viewer app
+Tracker app  ──(GPS + Firebase)──▶  Realtime Database  ◀──(read)──  Viewer app
                                           │
                                     Firebase Auth
-                                    (email/contraseña
-                                     para Viewer;
-                                     código de
-                                     emparejamiento
-                                     para Tracker)
+                                    (email/password
+                                     for Viewer;
+                                     pairing code
+                                     for Tracker)
 ```
 
-### Estructura de datos en Firebase Realtime Database
+### Data structure in Firebase Realtime Database
 
 ```
 pairingCodes/
-  {codigo}: "{uid del propietario}"
+  {code}: "{owner's uid}"
 
 users/
   {uid}/
     pairingCode: "AB12CD"
     devices/
       {deviceId}/
-        name: "Nombre del teléfono"
+        name: "Phone name"
         lastSeen: <timestamp>
     locations/
       {deviceId}/
         lat, lng, timestamp
     requests/
-      {deviceId}: <timestamp>          # trigger para pedir ubicación puntual
+      {deviceId}: <timestamp>          # trigger to request a one-off location
     history/
       {deviceId}/
-        {clave autogenerada}/
+        {auto-generated key}/
           lat, lng, timestamp
     lastKnownLocation/
       {deviceId}/
-        lat, lng, timestamp            # referencia para el umbral de movimiento
+        lat, lng, timestamp            # reference for the movement threshold
 ```
 
 ---
 
-## 🔑 Flujo de emparejamiento
+## 🔑 Pairing flow
 
-1. El usuario se registra en **Viewer** (email + contraseña, Firebase Authentication).
-2. Al crear la cuenta, se genera automáticamente un **código de emparejamiento** de 6 caracteres, mostrado en la app y guardado en `users/{uid}/pairingCode` y en el índice `pairingCodes/{codigo}`.
-3. Al instalar **Tracker** en un teléfono, se le pide un nombre y ese mismo código.
-4. Tracker consulta `pairingCodes/{codigo}` para obtener el `uid` del propietario, genera un `deviceId` único (UUID), y guarda ambos en `SharedPreferences` locales (`DevicePrefs`).
-5. A partir de ahí, todas las escrituras de ese Tracker van a `users/{uid}/.../{deviceId}`.
+1. The user signs up in **Viewer** (email + password, Firebase Authentication).
+2. When the account is created, a 6-character **pairing code** is generated automatically, shown in the app and stored under `users/{uid}/pairingCode` and in the `pairingCodes/{code}` index.
+3. When installing **Tracker** on a phone, it asks for a name and that same code.
+4. Tracker looks up `pairingCodes/{code}` to get the owner's `uid`, generates a unique `deviceId` (UUID), and stores both locally in `SharedPreferences` (`DevicePrefs`).
+5. From then on, all writes from that Tracker go to `users/{uid}/.../{deviceId}`.
 
 ---
 
-## ⚙️ Funcionamiento de Tracker (segundo plano)
+## ⚙️ How Tracker works (background)
 
-### Piezas del sistema de fiabilidad
+### Reliability system components
 
-| Componente | Función |
+| Component | Function |
 |---|---|
-| `LocalizadorService` | Foreground Service principal. Escucha `requests/{deviceId}` y responde con la ubicación GPS actual. |
-| `onTaskRemoved()` | Si el usuario cierra la app, intenta reiniciar el Service en 1 segundo (alarma exacta `setExactAndAllowWhileIdle`). |
-| `WatchdogScheduler` + `WatchdogAlarmReceiver` | Alarma recurrente cada 15 minutos que comprueba y relanza el Service si está muerto. Resistente a Doze. |
-| `HistoryScheduler` + `HistoryAlarmReceiver` | Alarma cada 15 minutos que dispara `LocationHistoryWorker` para registrar el recorrido. |
-| `LocationHistoryWorker` | Compara la ubicación actual con la última guardada; solo escribe en `history` si el desplazamiento supera 50 metros (evita ruido del GPS en reposo). |
-| `BootReceiver` | Arranca el Service al reiniciar el teléfono (`BOOT_COMPLETED`), con reintento y tolerancia a fallos. |
-| Autocuración en `onCreate()` | Cada vez que el Service arranca (por cualquier vía), reprograma sus propias alarmas de watchdog — no depende de que se abra `MainActivity`. |
+| `LocalizadorService` | Main Foreground Service. Listens to `requests/{deviceId}` and responds with the current GPS location. |
+| `onTaskRemoved()` | If the user closes the app, it tries to restart the Service after 1 second (exact alarm `setExactAndAllowWhileIdle`). |
+| `WatchdogScheduler` + `WatchdogAlarmReceiver` | Recurring alarm every 15 minutes that checks and relaunches the Service if it's dead. Resistant to Doze. |
+| `HistoryScheduler` + `HistoryAlarmReceiver` | Alarm every 15 minutes that triggers `LocationHistoryWorker` to log the route. |
+| `LocationHistoryWorker` | Compares the current location with the last saved one; only writes to `history` if the movement exceeds 50 meters (avoids GPS noise while stationary). |
+| `BootReceiver` | Starts the Service on phone restart (`BOOT_COMPLETED`), with retry and fault tolerance. |
+| Self-healing in `onCreate()` | Every time the Service starts (by any path), it reschedules its own watchdog alarms — it doesn't depend on `MainActivity` being opened. |
 
-### Permisos necesarios (Tracker)
+### Required permissions (Tracker)
 - `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`
 - `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`
 - `POST_NOTIFICATIONS`
@@ -97,85 +89,85 @@ users/
 
 ---
 
-## 🗺️ Funcionalidad de Viewer
+## 🗺️ Viewer functionality
 
-- **Login / registro** con email y contraseña (Firebase Auth).
-- **Selector de dispositivo** con indicador de estado en tiempo real:
-  - 🟢 activo (latido hace menos de 20 min)
-  - 🟡 sin confirmar recientemente (20–60 min)
-  - 🔴 inactivo (más de 60 min sin latido)
-- **Solicitar ubicación**: pide una posición puntual al Tracker seleccionado.
-- **Historial de recorrido**: dibuja el trazado guardado como línea punteada con flechas de dirección sobre el mapa (OpenStreetMap).
-- **Filtro por fecha**: permite consultar solo el recorrido de un día concreto.
-- **Vista de detalle**: pantalla aparte con lista de paradas, hora y dirección aproximada (geocodificación inversa vía Nominatim/OpenStreetMap).
-- **Menú desplegable**: todos los controles agrupados bajo un botón "☰ Opciones" para no tapar el mapa.
+- **Login / sign-up** with email and password (Firebase Auth).
+- **Device selector** with real-time status indicator:
+  - 🟢 active (heartbeat less than 20 min ago)
+  - 🟡 not confirmed recently (20–60 min)
+  - 🔴 inactive (more than 60 min without a heartbeat)
+- **Request location**: asks the selected Tracker for a one-off position.
+- **Route history**: draws the saved path as a dotted line with direction arrows on the map (OpenStreetMap).
+- **Date filter**: lets you check the route for just one specific day.
+- **Detail view**: separate screen with a list of stops, time, and approximate address (reverse geocoding via Nominatim/OpenStreetMap).
+- **Dropdown menu**: all controls grouped under a "☰ Options" button so they don't cover the map.
 
 ---
 
-## 🧰 Stack técnico
+## 🧰 Tech stack
 
-- **Lenguaje**: Kotlin
+- **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3)
-- **Mapas**: osmdroid (OpenStreetMap) — sin coste, sin API Key
+- **Maps**: osmdroid (OpenStreetMap) — free, no API key needed
 - **Backend**: Firebase Realtime Database + Firebase Authentication
-- **Concurrencia en segundo plano**: `AlarmManager` (alarmas exactas) + `WorkManager` (para el trabajo asíncrono de `CoroutineWorker`)
-- **Geocodificación inversa**: API pública de Nominatim (OpenStreetMap)
+- **Background concurrency**: `AlarmManager` (exact alarms) + `WorkManager` (for `CoroutineWorker` async work)
+- **Reverse geocoding**: Nominatim's public API (OpenStreetMap)
 
 ---
 
-## ⚠️ Limitaciones conocidas
+## ⚠️ Known limitations
 
-### Arranque tras reinicio del teléfono
-En dispositivos con **Android 16** (y potencialmente otras versiones recientes), el sistema restringe que un foreground service de tipo `location` arranque con acceso a ubicación desde un contexto de background puro (como `BootReceiver` justo tras el arranque). Esto puede provocar que, tras reiniciar el teléfono, el Service no consiga arrancar en el primer intento.
+### Startup after phone restart
+On devices running **Android 16** (and potentially other recent versions), the system restricts a `location`-type foreground service from starting with location access from a pure background context (such as `BootReceiver` right after boot). This can cause the Service to fail to start on the first attempt after a phone restart.
 
-**Mitigación aplicada:** las alarmas del watchdog se programan *antes* de intentar publicar la notificación, por lo que aunque el primer intento falle, el sistema se recupera solo en un máximo de **15 minutos**, sin intervención manual. En Android 10 (versiones antiguas) el comportamiento es equivalente por otros motivos del sistema (el propio `BootReceiver` no siempre dispara la app en el primer intento).
+**Mitigation applied:** the watchdog alarms are scheduled *before* attempting to post the notification, so even if the first attempt fails, the system recovers on its own within a maximum of **15 minutes**, with no manual action needed. On Android 10 (older versions) the behavior is equivalent for other system-related reasons (`BootReceiver` itself doesn't always fire the app on the first attempt).
 
-Esto es una limitación del sistema operativo, no del código de la aplicación — no existe forma legítima (sin privilegios de root) de garantizar un arranque instantáneo al 100 % en todos los dispositivos y versiones de Android.
+This is a limitation of the operating system, not of the application code — there's no legitimate way (without root privileges) to guarantee a 100% instant startup on every device and Android version.
 
-### "Cerrar todas las apps" en MIUI/HyperOS
-Usar el botón de limpieza general de aplicaciones recientes puede cancelar las alarmas programadas del sistema (`AlarmManager`), más allá del comportamiento estándar de Android. Cerrar la app individualmente (deslizando su propia tarjeta) no tiene este problema. En cualquier caso, un reinicio del teléfono o abrir la app una vez restaura el sistema por completo.
+### "Close all apps" on MIUI/HyperOS
+Using the general recent-apps cleanup button can cancel the system's scheduled alarms (`AlarmManager`), beyond standard Android behavior. Closing the app individually (swiping its own card) doesn't have this issue. In any case, restarting the phone or opening the app once fully restores the system.
 
-### Índices de Firebase
-Las consultas con filtro por fecha (`orderByChild("timestamp")`) requieren que el campo esté declarado como índice en las reglas de seguridad de Realtime Database (`.indexOn`). Sin este índice, Firebase rechaza la consulta con un error explícito.
-
----
-
-## 🔐 Seguridad
-
-- Firebase Authentication protege el acceso a los datos de cada usuario (`users/{uid}/...`).
-- Las reglas de Realtime Database deben restringir lectura/escritura únicamente al propietario autenticado de cada `uid`.
-- El índice de códigos de emparejamiento (`pairingCodes/`) evita que Tracker tenga que descargar la lista completa de usuarios para vincularse.
-- **Pendiente de cierre**: revisión final de las reglas de seguridad para producción (actualmente en modo de desarrollo/prueba con fecha de expiración).
+### Firebase indexes
+Queries with a date filter (`orderByChild("timestamp")`) require the field to be declared as an index in the Realtime Database security rules (`.indexOn`). Without this index, Firebase rejects the query with an explicit error.
 
 ---
 
-## 📂 Estructura de archivos relevante
+## 🔐 Security
+
+- Firebase Authentication protects access to each user's data (`users/{uid}/...`).
+- Realtime Database rules must restrict read/write access to only the authenticated owner of each `uid`.
+- The pairing code index (`pairingCodes/`) keeps Tracker from having to download the full list of users to link up.
+- **Still to close out**: final review of the security rules for production (currently in development/test mode with an expiration date).
+
+---
+
+## 📂 Relevant file structure
 
 ### Tracker app
 ```
-MainActivity.kt          — pantalla de vinculación (nombre + código)
-LocalizadorService.kt     — Foreground Service principal
-DevicePrefs.kt            — almacenamiento local (deviceId, ownerUid, nombre)
-BootReceiver.kt           — arranque tras reinicio
-WatchdogScheduler.kt / WatchdogAlarmReceiver.kt   — vigilancia del Service
-HistoryScheduler.kt / HistoryAlarmReceiver.kt     — vigilancia del historial
-LocationHistoryWorker.kt  — lógica de registro de recorrido con umbral
+MainActivity.kt          — pairing screen (name + code)
+LocalizadorService.kt     — main Foreground Service
+DevicePrefs.kt            — local storage (deviceId, ownerUid, name)
+BootReceiver.kt           — startup after restart
+WatchdogScheduler.kt / WatchdogAlarmReceiver.kt   — Service monitoring
+HistoryScheduler.kt / HistoryAlarmReceiver.kt     — history monitoring
+LocationHistoryWorker.kt  — route logging logic with threshold
 ```
 
 ### Viewer app
 ```
-MainActivity.kt           — pantalla principal (mapa, menú, lógica de sesión)
-LoginScreen.kt             — pantalla de login/registro
-DetalleHistorialScreen.kt  — pantalla de detalle del recorrido con direcciones
+MainActivity.kt           — main screen (map, menu, session logic)
+LoginScreen.kt             — login/sign-up screen
+DetalleHistorialScreen.kt  — route detail screen with addresses
 ```
 
 ---
 
-## 🚧 Estado del proyecto
+## 🚧 Project status
 
-- ✅ Localización puntual bajo demanda
-- ✅ Historial de recorrido con umbral de movimiento
-- ✅ Soporte multi-dispositivo con login y emparejamiento por código
-- ✅ Recuperación automática frente a Doze, cierre de apps y reinicio (con las limitaciones documentadas arriba)
-- ✅ Visualización de historial en mapa con filtro por fecha y detalle de direcciones
-- ⏳ Pendiente: revisión final de reglas de seguridad de Firebase para uso en producción
+- ✅ On-demand location requests
+- ✅ Route history with movement threshold
+- ✅ Multi-device support with login and code-based pairing
+- ✅ Automatic recovery from Doze, app closures, and restarts (with the limitations documented above)
+- ✅ History visualization on map with date filter and address detail
+- ⏳ Pending: final review of Firebase security rules for production use
