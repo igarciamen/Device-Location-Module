@@ -1,20 +1,20 @@
 # Locator Project
 
-A location tracking system between two or more of your own Android phones, made up of two independent apps (**Tracker** and **Viewer**) that communicate through Firebase Realtime Database, with user authentication and pairing via code.
+A location tracking system between two or more Android phones, made up of two independent apps (**Tracker** and **Viewer**) that communicate through Firebase Realtime Database, with user authentication and pairing via code.
 
 ---
 
-## 📱 Project Components
+##  Project Components
 
-### Tracker app (`com.igarciamen.trackerapp`)
+### Tracker app 
 App installed on the phone you want to track. **Has no significant graphical interface**: just a minimal screen to link the device the first time. Once linked, it runs in the background as a Foreground Service, listening for location requests and responding with the phone's real GPS coordinates.
 
-### Viewer app (`com.igarciamen.viewerapp`)
+### Viewer app 
 App with a full graphical interface, including a map (OpenStreetMap via osmdroid), user login, linked-device selector, on-demand location requests, route history with date filtering, and connection status for each Tracker.
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 Tracker app  ──(GPS + Firebase)──▶  Realtime Database  ◀──(read)──  Viewer app
@@ -55,7 +55,7 @@ users/
 
 ---
 
-## 🔑 Pairing flow
+## Pairing flow
 
 1. The user signs up in **Viewer** (email + password, Firebase Authentication).
 2. When the account is created, a 6-character **pairing code** is generated automatically, shown in the app and stored under `users/{uid}/pairingCode` and in the `pairingCodes/{code}` index.
@@ -79,32 +79,21 @@ users/
 | `BootReceiver` | Starts the Service on phone restart (`BOOT_COMPLETED`), with retry and fault tolerance. |
 | Self-healing in `onCreate()` | Every time the Service starts (by any path), it reschedules its own watchdog alarms — it doesn't depend on `MainActivity` being opened. |
 
-### Required permissions (Tracker)
-- `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`
-- `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`
-- `POST_NOTIFICATIONS`
-- `RECEIVE_BOOT_COMPLETED`
-- `SCHEDULE_EXACT_ALARM`
-- `INTERNET`
-
----
-
-## 🗺️ Viewer functionality
+##  Viewer functionality
 
 - **Login / sign-up** with email and password (Firebase Auth).
 - **Device selector** with real-time status indicator:
-  - 🟢 active (heartbeat less than 20 min ago)
+  - 🟢 active (less than 20 min ago)
   - 🟡 not confirmed recently (20–60 min)
-  - 🔴 inactive (more than 60 min without a heartbeat)
+  - 🔴 inactive (more than 60 min)
 - **Request location**: asks the selected Tracker for a one-off position.
 - **Route history**: draws the saved path as a dotted line with direction arrows on the map (OpenStreetMap).
 - **Date filter**: lets you check the route for just one specific day.
 - **Detail view**: separate screen with a list of stops, time, and approximate address (reverse geocoding via Nominatim/OpenStreetMap).
 - **Dropdown menu**: all controls grouped under a "☰ Options" button so they don't cover the map.
 
----
 
-## 🧰 Tech stack
+##  Tech stack
 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose (Material 3)
@@ -115,7 +104,7 @@ users/
 
 ---
 
-## ⚠️ Known limitations
+##  Known limitations
 
 ### Startup after phone restart
 On devices running **Android 16** (and potentially other recent versions), the system restricts a `location`-type foreground service from starting with location access from a pure background context (such as `BootReceiver` right after boot). This can cause the Service to fail to start on the first attempt after a phone restart.
@@ -132,7 +121,7 @@ Queries with a date filter (`orderByChild("timestamp")`) require the field to be
 
 ---
 
-## 🔐 Security
+## Security
 
 - Firebase Authentication protects access to each user's data (`users/{uid}/...`).
 - Realtime Database rules must restrict read/write access to only the authenticated owner of each `uid`.
@@ -141,7 +130,7 @@ Queries with a date filter (`orderByChild("timestamp")`) require the field to be
 
 ---
 
-## 📂 Relevant file structure
+## Relevant file structure
 
 ### Tracker app
 ```
@@ -161,13 +150,4 @@ LoginScreen.kt             — login/sign-up screen
 DetalleHistorialScreen.kt  — route detail screen with addresses
 ```
 
----
 
-## 🚧 Project status
-
-- ✅ On-demand location requests
-- ✅ Route history with movement threshold
-- ✅ Multi-device support with login and code-based pairing
-- ✅ Automatic recovery from Doze, app closures, and restarts (with the limitations documented above)
-- ✅ History visualization on map with date filter and address detail
-- ⏳ Pending: final review of Firebase security rules for production use
