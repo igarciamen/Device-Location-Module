@@ -3,6 +3,10 @@
 A location tracking system between two or more Android phones, made up of two independent apps (**Tracker** and **Viewer**) that communicate through Firebase Realtime Database, with user authentication and pairing via code.
 
 ---
+# Demo
+
+https://github.com/user-attachments/assets/d4445d4c-2a65-46d8-b364-b404634f8628
+
 
 ##  Project Components
 
